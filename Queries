@@ -1,0 +1,109 @@
+SELECT p.nm AS 'Product', m.nm AS 'Seller'
+FROM products p, merchants m, sell s
+WHERE s.mid=m.mid 
+	AND s.pid=p.pid 
+	AND s.quantity_available=0;
+
+SELECT p.nm AS 'Name', p.descript AS 'Description'
+FROM products p
+WHERE p.pid NOT IN
+	(SELECT s.pid 
+	FROM sell s);
+
+SELECT COUNT(DISTINCT p.cid) AS 'Customer Number'
+FROM place p, contain c, products prod
+WHERE p.oid=c.oid 
+	AND c.pid=prod.pid 
+    AND prod.descript LIKE '%SATA%' 
+    AND prod.nm LIKE '%Drive%' 
+    AND prod.nm != 'Router';
+
+SET SQL_SAFE_UPDATES = 0;
+UPDATE sell
+SET price = 0.8*price
+WHERE pid IN
+	(SELECT p.pid
+    FROM products p
+    WHERE p.category='Networking')
+	AND mid IN
+		(SELECT m.mid
+		FROM merchants m
+		WHERE m.nm='HP');
+        
+SELECT p.nm AS 'Product', s.price AS 'Price'
+FROM products p, customers c, sell s, place pl, contain con, merchants m
+WHERE c.cid=pl.cid
+	AND pl.oid=con.oid
+    AND con.pid=p.pid
+    AND p.pid=s.pid
+    AND s.mid=m.mid
+    AND c.fullname='Uriel Whitney'
+    AND m.nm='Acer';
+
+SELECT m.nm AS 'Company', YEAR(p.order_date) AS 'Date', SUM(s.price) AS 'Total'
+FROM merchants m, sell s, place p, contain c 
+WHERE m.mid=s.mid
+	AND s.pid=c.pid
+    AND c.oid=p.oid
+GROUP BY m.nm, YEAR(p.order_date)
+ORDER BY m.nm, YEAR(p.order_date);
+
+CREATE VIEW annual_rev AS
+	SELECT m.nm AS 'Company', YEAR(p.order_date) AS 'Date', SUM(s.price) AS 'Total'
+	FROM merchants m, sell s, place p, contain c 
+	WHERE m.mid=s.mid
+		AND s.pid=c.pid
+		AND c.oid=p.oid
+	GROUP BY m.nm, YEAR(p.order_date)
+	ORDER BY m.nm, YEAR(p.order_date);
+SELECT ar.Company, ar.Date 
+FROM annual_rev ar
+WHERE ar.total >= all
+	(SELECT ar.total
+    FROM annual_rev ar);
+
+CREATE VIEW avg_cost AS
+	SELECT o.shipping_method, avg(o.shipping_cost) AS 'avg'
+	FROM orders o, place p
+    WHERE o.oid=p.oid
+    GROUP BY o.shipping_method;
+SELECT ac.shipping_method AS 'Method'
+FROM avg_cost ac
+WHERE ac.avg <= all
+	(SELECT ac.avg
+    FROM avg_cost ac);
+
+CREATE VIEW cat_sold AS
+	SELECT m.nm AS 'Company', p.category AS 'Category', sum(s.price) AS 'Profits'
+	FROM merchants m, products p, sell s
+    WHERE m.mid=s.mid
+		AND s.pid=p.pid
+    GROUP BY m.nm, p.category;
+SELECT cs.Company, cs.Category
+FROM cat_sold cs
+WHERE cs.Profits >= all
+	(SELECT c.Profits
+    FROM cat_sold c
+    WHERE c.Company=cs.Company);
+
+CREATE VIEW total_spent AS
+	SELECT m.nm AS 'Company', c.fullname AS 'Customer', sum(s.price) AS 'Spent'
+    FROM merchants m, customers c, place p, contain con, sell s
+    WHERE c.cid=p.cid
+		AND p.oid=con.oid
+        AND con.pid=s.pid
+        AND s.mid-m.mid
+	GROUP BY m.nm, c.fullname;
+SELECT ts.Company, ts.Customer, ts.Spent AS 'Most/Least'
+FROM total_spent ts
+WHERE ts.Spent >= all
+	(SELECT t.Spent
+    FROM total_spent t
+    WHERE t.Company=ts.Company)
+UNION
+SELECT ts.Company, ts.Customer, ts.Spent
+FROM total_spent ts
+WHERE ts.Spent <= all
+	(SELECT t.Spent
+    FROM total_spent t
+    WHERE t.Company=ts.Company);
